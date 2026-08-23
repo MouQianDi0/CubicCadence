@@ -1,7 +1,7 @@
-[23:49:22] [Test worker/WARN]: Cubic Cadence playback rejected: no login session (trackId=1, title=track-1)
-[23:49:22] [Test worker/WARN]: Cubic Cadence playback failed: playback_error.cubic-cadence.session_required (trackId=<none>, title=<none>)
-[23:49:22] [Test worker/INFO]: Cubic Cadence resumed online audio at byte 5 (retry 1/3)
-[23:49:22] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 5 (retry 1/3)
+[00:30:49] [Test worker/WARN]: Cubic Cadence playback rejected: no login session (trackId=1, title=track-1)
+[00:30:49] [Test worker/WARN]: Cubic Cadence playback failed: playback_error.cubic-cadence.session_required (trackId=<none>, title=<none>)
+[00:30:49] [Test worker/INFO]: Cubic Cadence resumed online audio at byte 5 (retry 1/3)
+[00:30:49] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 5 (retry 1/3)
 java.io.IOException: Audio CDN returned an invalid Content-Range for byte 5
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.openValidatedConnection(ResumableHttpInputStream.java:257)
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.reconnect(ResumableHttpInputStream.java:199)
@@ -103,7 +103,7 @@ java.io.IOException: Audio CDN returned an invalid Content-Range for byte 5
 	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:72)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
-[23:49:22] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 5 (retry 2/3)
+[00:30:49] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 5 (retry 2/3)
 java.io.IOException: Audio CDN returned an invalid Content-Range for byte 5
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.openValidatedConnection(ResumableHttpInputStream.java:257)
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.reconnect(ResumableHttpInputStream.java:199)
@@ -205,7 +205,7 @@ java.io.IOException: Audio CDN returned an invalid Content-Range for byte 5
 	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:72)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
-[23:49:22] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 5 (retry 3/3)
+[00:30:49] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 5 (retry 3/3)
 java.io.IOException: Audio CDN returned an invalid Content-Range for byte 5
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.openValidatedConnection(ResumableHttpInputStream.java:257)
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.reconnect(ResumableHttpInputStream.java:199)
@@ -307,8 +307,8 @@ java.io.IOException: Audio CDN returned an invalid Content-Range for byte 5
 	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:72)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
-[23:49:22] [Test worker/INFO]: Cubic Cadence resumed online audio at byte 6 (retry 1/3)
-[23:49:22] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 4 (retry 1/3)
+[00:30:49] [Test worker/INFO]: Cubic Cadence resumed online audio at byte 6 (retry 1/3)
+[00:30:49] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 4 (retry 1/3)
 java.io.IOException: Audio CDN does not support safe resume: expected HTTP 206 but received 200
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.openValidatedConnection(ResumableHttpInputStream.java:250)
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.reconnect(ResumableHttpInputStream.java:199)
@@ -410,7 +410,7 @@ java.io.IOException: Audio CDN does not support safe resume: expected HTTP 206 b
 	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:72)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
-[23:49:22] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 4 (retry 2/3)
+[00:30:49] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 4 (retry 2/3)
 java.io.IOException: Audio CDN does not support safe resume: expected HTTP 206 but received 200
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.openValidatedConnection(ResumableHttpInputStream.java:250)
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.reconnect(ResumableHttpInputStream.java:199)
@@ -512,7 +512,7 @@ java.io.IOException: Audio CDN does not support safe resume: expected HTTP 206 b
 	at org.gradle.process.internal.worker.child.SystemApplicationClassLoaderWorker.call(SystemApplicationClassLoaderWorker.java:72)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.run(GradleWorkerMain.java:69)
 	at worker.org.gradle.process.internal.worker.GradleWorkerMain.main(GradleWorkerMain.java:74)
-[23:49:22] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 4 (retry 3/3)
+[00:30:49] [Test worker/WARN]: Cubic Cadence online audio reconnect failed at byte 4 (retry 3/3)
 java.io.IOException: Audio CDN does not support safe resume: expected HTTP 206 but received 200
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.openValidatedConnection(ResumableHttpInputStream.java:250)
 	at com.cubiccadence.client.playback.ResumableHttpInputStream.reconnect(ResumableHttpInputStream.java:199)

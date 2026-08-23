@@ -1,18 +1,30 @@
 package com.cubiccadence.client.ui.hud;
 
 import com.cubiccadence.client.config.HudSettings;
+import com.cubiccadence.client.config.HudLyricFont;
+import com.cubiccadence.client.font.CustomLyricFontManager;
 import com.cubiccadence.client.ui.texture.RemoteTextureCache;
 import com.cubiccadence.model.Artist;
+import com.cubiccadence.model.LyricLine;
+import net.minecraft.client.Minecraft;
 import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
+import net.minecraft.network.chat.FontDescription;
+import net.minecraft.util.FormattedCharSequence;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
 /** Shared renderer used by both the live HUD and its settings preview. */
 public final class NowPlayingHudRenderer {
     private static final int DEFAULT_WIDTH = 228;
+    private static final int LYRICS_MODE_WIDTH = 320;
+    private static final int LYRICS_MODE_LINE_COUNT = 5;
+    private static final int MAX_WRAPPED_LINES = 2;
+    private static final int LYRICS_MODE_HORIZONTAL_INSET = 2;
     private static final int SCREEN_MARGIN = 8;
     private static final int PADDING = 6;
     private static final int COVER_SIZE = 38;
@@ -23,6 +35,8 @@ public final class NowPlayingHudRenderer {
     private static final int PRIMARY = 0xFFF4F6FA;
     private static final int SECONDARY = 0xFFB7BDC8;
     private static final int PROGRESS_BACKGROUND = 0xFF3B4350;
+    private static final int INACTIVE_LYRIC_ALPHA = 0x66;
+    private static final float INACTIVE_LYRIC_SCALE = 0.82f;
 
     private NowPlayingHudRenderer() {
     }
@@ -47,7 +61,7 @@ public final class NowPlayingHudRenderer {
             return;
         }
 
-        Layout layout = measure(font, settings, content, viewportWidth);
+        Layout layout = measure(font, settings, content, viewportWidth, viewportHeight);
         if (layout == null) {
             return;
         }
@@ -76,12 +90,21 @@ public final class NowPlayingHudRenderer {
                 snapshot.track().coverUrl(),
                 snapshot.positionMs(),
                 snapshot.durationMs(),
-                snapshot.currentLyric(),
-                snapshot.nextLyric()
+                snapshot.lyricLines(),
+                snapshot.currentLyricIndex()
         );
     }
 
-    private static Layout measure(Font font, HudSettings settings, HudContent content, int viewportWidth) {
+    private static Layout measure(
+            Font font,
+            HudSettings settings,
+            HudContent content,
+            int viewportWidth,
+            int viewportHeight
+    ) {
+        if (settings.lyricsMode()) {
+            return measureLyricsMode(font, settings, content, viewportWidth, viewportHeight);
+        }
         boolean lyrics = settings.showLyrics()
                 && (!content.currentLyric().isBlank() || !content.nextLyric().isBlank());
         boolean hasDetails = settings.showTitle() || settings.showArtist() || settings.showProgress();
@@ -109,7 +132,73 @@ public final class NowPlayingHudRenderer {
         }
         int topHeight = Math.max(settings.showCover() ? COVER_SIZE : 0, detailHeight);
         int lyricHeight = lyrics ? scaledLineHeight(font, settings.lyricScale()) + 5 : 0;
-        return new Layout(width, PADDING * 2 + topHeight + lyricHeight, topHeight, lyrics);
+        return new Layout(width, PADDING * 2 + topHeight + lyricHeight, topHeight, lyrics, null);
+    }
+
+    private static Layout measureLyricsMode(
+            Font font,
+            HudSettings settings,
+            HudContent content,
+            int viewportWidth,
+            int viewportHeight
+    ) {
+        if (content.lyricLines().isEmpty()) {
+            return null;
+        }
+        int availableWidth = viewportWidth - SCREEN_MARGIN * 2;
+        int maximumBaseWidth = (int) Math.floor(availableWidth / settings.scale());
+        if (maximumBaseWidth < 48) {
+            return null;
+        }
+        int width = Math.min(LYRICS_MODE_WIDTH, maximumBaseWidth);
+        List<Integer> indexes = visibleLyricIndexes(content.lyricLines().size(), content.currentLyricIndex());
+        List<LyricsRow> rows = new ArrayList<>(indexes.size());
+        for (int index : indexes) {
+            boolean active = index == content.currentLyricIndex();
+            float rowScale = settings.lyricScale() * (active ? 1.0f : INACTIVE_LYRIC_SCALE);
+            LyricLine line = content.lyricLines().get(index);
+            int wrappingWidth = availableTextWidth(width - LYRICS_MODE_HORIZONTAL_INSET * 2, rowScale);
+            List<FormattedCharSequence> original = wrapLyric(font, lyricText(line.text(), settings), wrappingWidth);
+            List<FormattedCharSequence> translated = wrapLyric(
+                    font,
+                    lyricText(line.translatedText(), settings),
+                    wrappingWidth
+            );
+            if (original.isEmpty() && translated.isEmpty()) {
+                continue;
+            }
+            int visualLines = original.size() + translated.size();
+            int translationGap = !original.isEmpty() && !translated.isEmpty() ? 2 : 0;
+            int height = visualLines * scaledLineHeight(font, rowScale) + translationGap;
+            rows.add(new LyricsRow(original, translated, active, rowScale, height));
+        }
+        if (rows.isEmpty()) {
+            return null;
+        }
+        int maximumBaseHeight = Math.max(1, (int) Math.floor(
+                Math.max(1, viewportHeight - SCREEN_MARGIN * 2) / settings.scale()
+        ));
+        int height = totalLyricsHeight(rows);
+        while (rows.size() > 1 && height > maximumBaseHeight) {
+            int activeRow = -1;
+            for (int index = 0; index < rows.size(); index++) {
+                if (rows.get(index).active()) {
+                    activeRow = index;
+                    break;
+                }
+            }
+            int removeIndex;
+            if (activeRow < 0) {
+                removeIndex = rows.size() - 1;
+            } else {
+                int before = activeRow;
+                int after = rows.size() - activeRow - 1;
+                removeIndex = after >= before ? rows.size() - 1 : 0;
+            }
+            rows.remove(removeIndex);
+            height = totalLyricsHeight(rows);
+        }
+        return new Layout(width, height, 0, false, new LyricsModeLayout(List.copyOf(rows)));
     }
 
     private static void renderLocal(
@@ -120,6 +209,10 @@ public final class NowPlayingHudRenderer {
             Layout layout,
             RemoteTextureCache textureCache
     ) {
+        if (layout.lyricsMode() != null) {
+            renderLyricsMode(graphics, font, settings, layout.lyricsMode());
+            return;
+        }
         if (settings.backgroundEnabled()) {
             graphics.fill(0, 0, layout.width(), layout.height(), BACKGROUND);
             graphics.outline(0, 0, layout.width(), layout.height(), BORDER);
@@ -166,8 +259,18 @@ public final class NowPlayingHudRenderer {
             int columnGap = 8;
             int currentWidth = Math.max(1, (lyricWidth - columnGap) * 55 / 100);
             int nextWidth = Math.max(1, lyricWidth - columnGap - currentWidth);
-            Component current = fit(font, content.currentLyric(), availableTextWidth(currentWidth, settings.lyricScale()));
-            Component next = fit(font, content.nextLyric(), availableTextWidth(nextWidth, settings.lyricScale()));
+            Component current = fitLyric(
+                    font,
+                    content.currentLyric(),
+                    settings,
+                    availableTextWidth(currentWidth, settings.lyricScale())
+            );
+            Component next = fitLyric(
+                    font,
+                    content.nextLyric(),
+                    settings,
+                    availableTextWidth(nextWidth, settings.lyricScale())
+            );
             if (!content.currentLyric().isBlank()) {
                 drawScaledText(
                         graphics,
@@ -191,6 +294,33 @@ public final class NowPlayingHudRenderer {
                         settings.lyricScale()
                 );
             }
+        }
+    }
+
+    private static void renderLyricsMode(
+            GuiGraphicsExtractor graphics,
+            Font font,
+            HudSettings settings,
+            LyricsModeLayout layout
+    ) {
+        int y = 0;
+        for (LyricsRow row : layout.rows()) {
+            int color = row.active()
+                    ? settings.lyricColor()
+                    : withAlpha(settings.lyricColor(), INACTIVE_LYRIC_ALPHA);
+            int lineHeight = scaledLineHeight(font, row.scale());
+            for (FormattedCharSequence line : row.original()) {
+                drawScaledText(graphics, font, line, LYRICS_MODE_HORIZONTAL_INSET, y, color, row.scale());
+                y += lineHeight;
+            }
+            if (!row.original().isEmpty() && !row.translated().isEmpty()) {
+                y += 2;
+            }
+            for (FormattedCharSequence line : row.translated()) {
+                drawScaledText(graphics, font, line, LYRICS_MODE_HORIZONTAL_INSET, y, color, row.scale());
+                y += lineHeight;
+            }
+            y += 6;
         }
     }
 
@@ -234,6 +364,22 @@ public final class NowPlayingHudRenderer {
         graphics.pose().popMatrix();
     }
 
+    private static void drawScaledText(
+            GuiGraphicsExtractor graphics,
+            Font font,
+            FormattedCharSequence text,
+            int x,
+            int y,
+            int color,
+            float scale
+    ) {
+        graphics.pose().pushMatrix();
+        graphics.pose().translate(x, y);
+        graphics.pose().scale(scale, scale);
+        graphics.text(font, text, 0, 0, color);
+        graphics.pose().popMatrix();
+    }
+
     private static int availableTextWidth(int renderedWidth, float scale) {
         return Math.max(1, (int) Math.floor(renderedWidth / scale));
     }
@@ -253,6 +399,81 @@ public final class NowPlayingHudRenderer {
         return Component.literal(font.plainSubstrByWidth(value, Math.max(0, width - ellipsisWidth)) + "…");
     }
 
+    private static Component fitLyric(Font font, String value, HudSettings settings, int width) {
+        if (value == null || value.isBlank()) {
+            return Component.empty();
+        }
+        Component full = lyricText(value, settings);
+        if (font.width(full) <= width) {
+            return full;
+        }
+        Component ellipsis = lyricText("…", settings);
+        int available = Math.max(0, width - font.width(ellipsis));
+        int acceptedEnd = 0;
+        for (int offset = 0; offset < value.length(); ) {
+            int next = offset + Character.charCount(value.codePointAt(offset));
+            if (font.width(lyricText(value.substring(0, next), settings)) > available) {
+                break;
+            }
+            acceptedEnd = next;
+            offset = next;
+        }
+        return lyricText(value.substring(0, acceptedEnd) + "…", settings);
+    }
+
+    private static Component lyricText(String value, HudSettings settings) {
+        if (value == null || value.isBlank()) {
+            return Component.empty();
+        }
+        FontDescription description = effectiveLyricFont(settings);
+        return Component.literal(value).withStyle(style -> style
+                .withFont(description)
+                .withBold(settings.lyricWeight().bold()));
+    }
+
+    private static FontDescription effectiveLyricFont(HudSettings settings) {
+        if (settings.lyricFont() != HudLyricFont.CUSTOM) {
+            return settings.lyricFont().description();
+        }
+        Minecraft minecraft = Minecraft.getInstance();
+        return minecraft != null && CustomLyricFontManager.isLoaded(minecraft)
+                ? settings.lyricFont().description()
+                : HudLyricFont.DEFAULT.description();
+    }
+
+    private static List<FormattedCharSequence> wrapLyric(Font font, Component text, int width) {
+        if (text.getString().isBlank()) {
+            return List.of();
+        }
+        List<FormattedCharSequence> wrapped = font.split(text, Math.max(1, width));
+        return wrapped.size() <= MAX_WRAPPED_LINES
+                ? List.copyOf(wrapped)
+                : List.copyOf(wrapped.subList(0, MAX_WRAPPED_LINES));
+    }
+
+    private static List<Integer> visibleLyricIndexes(int lineCount, int currentIndex) {
+        if (lineCount <= 0) {
+            return List.of();
+        }
+        int center = currentIndex < 0 ? 0 : currentIndex;
+        int start = Math.max(0, center - LYRICS_MODE_LINE_COUNT / 2);
+        int end = Math.min(lineCount, start + LYRICS_MODE_LINE_COUNT);
+        start = Math.max(0, end - LYRICS_MODE_LINE_COUNT);
+        List<Integer> indexes = new ArrayList<>(end - start);
+        for (int index = start; index < end; index++) {
+            indexes.add(index);
+        }
+        return List.copyOf(indexes);
+    }
+
+    private static int withAlpha(int color, int alpha) {
+        return Math.max(0, Math.min(255, alpha)) << 24 | color & 0x00FFFFFF;
+    }
+
+    private static int totalLyricsHeight(List<LyricsRow> rows) {
+        return rows.stream().mapToInt(LyricsRow::height).sum() + Math.max(0, rows.size() - 1) * 6;
+    }
+
     private static int darken(int color, float factor) {
         int red = Math.round((color >> 16 & 0xFF) * factor);
         int green = Math.round((color >> 8 & 0xFF) * factor);
@@ -260,7 +481,25 @@ public final class NowPlayingHudRenderer {
         return color & 0xFF000000 | red << 16 | green << 8 | blue;
     }
 
-    private record Layout(int width, int height, int topHeight, boolean lyrics) {
+    private record Layout(
+            int width,
+            int height,
+            int topHeight,
+            boolean lyrics,
+            LyricsModeLayout lyricsMode
+    ) {
+    }
+
+    private record LyricsModeLayout(List<LyricsRow> rows) {
+    }
+
+    private record LyricsRow(
+            List<FormattedCharSequence> original,
+            List<FormattedCharSequence> translated,
+            boolean active,
+            float scale,
+            int height
+    ) {
     }
 
     public record HudContent(
@@ -269,8 +508,8 @@ public final class NowPlayingHudRenderer {
             String coverUrl,
             long positionMs,
             long durationMs,
-            String currentLyric,
-            String nextLyric
+            List<LyricLine> lyricLines,
+            int currentLyricIndex
     ) {
         public HudContent {
             title = normalize(title);
@@ -278,8 +517,19 @@ public final class NowPlayingHudRenderer {
             coverUrl = normalize(coverUrl);
             positionMs = Math.max(0L, positionMs);
             durationMs = Math.max(0L, durationMs);
-            currentLyric = normalize(currentLyric);
-            nextLyric = normalize(nextLyric);
+            lyricLines = lyricLines == null ? List.of() : List.copyOf(lyricLines);
+            if (currentLyricIndex < 0 || currentLyricIndex >= lyricLines.size()) {
+                currentLyricIndex = -1;
+            }
+        }
+
+        public String currentLyric() {
+            return currentLyricIndex < 0 ? "" : lyricLines.get(currentLyricIndex).text();
+        }
+
+        public String nextLyric() {
+            int nextIndex = currentLyricIndex < 0 ? 0 : currentLyricIndex + 1;
+            return nextIndex >= lyricLines.size() ? "" : lyricLines.get(nextIndex).text();
         }
 
         private static String normalize(String value) {

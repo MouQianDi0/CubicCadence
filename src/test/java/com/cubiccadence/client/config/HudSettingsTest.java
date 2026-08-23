@@ -3,6 +3,7 @@ package com.cubiccadence.client.config;
 import org.junit.jupiter.api.Test;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
+import static org.junit.jupiter.api.Assertions.assertFalse;
 import static org.junit.jupiter.api.Assertions.assertTrue;
 
 class HudSettingsTest {
@@ -16,11 +17,14 @@ class HudSettingsTest {
         assertTrue(settings.showArtist());
         assertTrue(settings.showProgress());
         assertTrue(settings.showLyrics());
+        assertFalse(settings.lyricsMode());
         assertTrue(settings.backgroundEnabled());
         assertEquals(1.0f, settings.scale());
         assertEquals(1.0f, settings.titleScale());
         assertEquals(1.0f, settings.lyricScale());
         assertEquals(HudSettings.DEFAULT_LYRIC_COLOR, settings.lyricColor());
+        assertEquals(HudLyricFont.DEFAULT, settings.lyricFont());
+        assertEquals(HudLyricWeight.REGULAR, settings.lyricWeight());
         assertEquals(HudPosition.TOP_LEFT, settings.position());
     }
 
@@ -33,10 +37,13 @@ class HudSettingsTest {
                 true,
                 true,
                 true,
+                true,
                 Float.NaN,
                 8.0f,
                 -3.0f,
                 0x00123456,
+                null,
+                null,
                 true,
                 null,
                 -500,
@@ -47,9 +54,17 @@ class HudSettingsTest {
         assertEquals(HudSettings.MAX_SCALE, settings.titleScale());
         assertEquals(HudSettings.MIN_SCALE, settings.lyricScale());
         assertEquals(0xFF123456, settings.lyricColor());
+        assertEquals(HudLyricFont.DEFAULT, settings.lyricFont());
+        assertEquals(HudLyricWeight.REGULAR, settings.lyricWeight());
         assertEquals(HudPosition.TOP_LEFT, settings.position());
         assertEquals(HudSettings.MIN_OFFSET, settings.offsetX());
         assertEquals(HudSettings.MAX_OFFSET, settings.offsetY());
+    }
+
+    @Test
+    void unknownPersistedFontOptionsFallBackSafely() {
+        assertEquals(HudLyricFont.DEFAULT, HudLyricFont.parse("REMOVED_FONT"));
+        assertEquals(HudLyricWeight.REGULAR, HudLyricWeight.parse("HEAVY"));
     }
 
     @Test

@@ -2,8 +2,12 @@ package com.cubiccadence.client.ui.screen;
 
 import com.cubiccadence.client.config.HudPosition;
 import com.cubiccadence.client.config.HudSettings;
+import com.cubiccadence.client.config.HudLyricFont;
+import com.cubiccadence.client.config.HudLyricWeight;
 import com.cubiccadence.client.config.ModConfig;
+import com.cubiccadence.client.font.CustomLyricFontManager;
 import com.cubiccadence.client.ui.hud.NowPlayingHudRenderer;
+import com.cubiccadence.model.LyricLine;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.client.gui.components.AbstractSliderButton;
 import net.minecraft.client.gui.components.Button;
@@ -14,6 +18,7 @@ import net.minecraft.network.chat.Component;
 import java.util.function.Consumer;
 import java.util.function.DoubleConsumer;
 import java.util.function.Supplier;
+import java.util.List;
 
 /** Live HUD customization with a game-scale preview and grouped controls. */
 public final class HudSettingsScreen extends Screen {
@@ -36,16 +41,21 @@ public final class HudSettingsScreen extends Screen {
     private boolean showArtist;
     private boolean showProgress;
     private boolean showLyrics;
+    private boolean lyricsMode;
     private float hudScale;
     private float titleScale;
     private float lyricScale;
     private int lyricRed;
     private int lyricGreen;
     private int lyricBlue;
+    private HudLyricFont lyricFont;
+    private HudLyricWeight lyricWeight;
     private boolean backgroundEnabled;
     private HudPosition position;
     private int offsetX;
     private int offsetY;
+    private boolean customFontLoading;
+    private Component customFontStatus = Component.empty();
 
     public HudSettingsScreen(Screen parent) {
         super(Component.translatable("screen.cubic-cadence.hud_settings"));
@@ -61,6 +71,7 @@ public final class HudSettingsScreen extends Screen {
             case DISPLAY -> addDisplayControls(layout);
             case SIZE -> addSizeControls(layout);
             case APPEARANCE -> addAppearanceControls(layout);
+            case LYRICS -> addLyricsControls(layout);
             case POSITION -> addPositionControls(layout);
         }
         addFooter(layout);
@@ -94,8 +105,6 @@ public final class HudSettingsScreen extends Screen {
         addOption(x, y, layout.controlWidth(), "checkbox.cubic-cadence.hud_artist", showArtist, value -> showArtist = value);
         y += CONTROL_HEIGHT + displayGap;
         addOption(x, y, layout.controlWidth(), "checkbox.cubic-cadence.hud_progress", showProgress, value -> showProgress = value);
-        y += CONTROL_HEIGHT + displayGap;
-        addOption(x, y, layout.controlWidth(), "checkbox.cubic-cadence.hud_lyrics", showLyrics, value -> showLyrics = value);
     }
 
     private void addSizeControls(PageLayout layout) {
@@ -125,6 +134,48 @@ public final class HudSettingsScreen extends Screen {
         addColorSlider(x, y, layout.controlWidth(), "slider.cubic-cadence.hud_lyric_green", () -> lyricGreen, value -> lyricGreen = value);
         y += CONTROL_HEIGHT + CONTROL_GAP;
         addColorSlider(x, y, layout.controlWidth(), "slider.cubic-cadence.hud_lyric_blue", () -> lyricBlue, value -> lyricBlue = value);
+    }
+
+    private void addLyricsControls(PageLayout layout) {
+        int x = layout.controlX();
+        int y = layout.controlsTop();
+        int lyricsGap = 3;
+        addOption(
+                x,
+                y,
+                layout.controlWidth(),
+                "checkbox.cubic-cadence.hud_lyrics_mode",
+                lyricsMode,
+                value -> lyricsMode = value
+        );
+        y += CONTROL_HEIGHT + lyricsGap;
+        addOption(
+                x,
+                y,
+                layout.controlWidth(),
+                "checkbox.cubic-cadence.hud_lyrics",
+                showLyrics,
+                value -> showLyrics = value
+        );
+        y += CONTROL_HEIGHT + lyricsGap;
+        this.addRenderableWidget(
+                Button.builder(lyricFontMessage(), ignored -> cycleLyricFont())
+                        .bounds(x, y, layout.controlWidth(), CONTROL_HEIGHT)
+                        .build()
+        );
+        y += CONTROL_HEIGHT + lyricsGap;
+        this.addRenderableWidget(
+                Button.builder(lyricWeightMessage(), ignored -> cycleLyricWeight())
+                        .bounds(x, y, layout.controlWidth(), CONTROL_HEIGHT)
+                        .build()
+        );
+        y += CONTROL_HEIGHT + lyricsGap;
+        Button customFontButton = this.addRenderableWidget(
+                Button.builder(customFontButtonMessage(), ignored -> chooseCustomFont())
+                        .bounds(x, y, layout.controlWidth(), CONTROL_HEIGHT)
+                        .build()
+        );
+        customFontButton.active = !customFontLoading;
     }
 
     private void addPositionControls(PageLayout layout) {
@@ -246,6 +297,91 @@ public final class HudSettingsScreen extends Screen {
         rebuildWidgets();
     }
 
+    private void cycleLyricFont() {
+        lyricFont = switch (lyricFont) {
+            case DEFAULT -> HudLyricFont.UNIFORM;
+            case UNIFORM -> CustomLyricFontManager.isInstalled(this.minecraft)
+                    ? HudLyricFont.CUSTOM
+                    : HudLyricFont.DEFAULT;
+            case CUSTOM -> HudLyricFont.DEFAULT;
+        };
+        rebuildWidgets();
+    }
+
+    private void cycleLyricWeight() {
+        lyricWeight = lyricWeight == HudLyricWeight.REGULAR
+                ? HudLyricWeight.BOLD
+                : HudLyricWeight.REGULAR;
+        rebuildWidgets();
+    }
+
+    private void chooseCustomFont() {
+        if (customFontLoading || this.minecraft == null) {
+            return;
+        }
+        customFontLoading = true;
+        customFontStatus = Component.translatable("status.cubic-cadence.custom_font.loading");
+        rebuildWidgets();
+        boolean started = CustomLyricFontManager.chooseAndInstall(
+                this.minecraft,
+                Component.translatable("dialog.cubic-cadence.custom_font.title").getString(),
+                Component.translatable("dialog.cubic-cadence.custom_font.filter").getString(),
+                this::handleCustomFontResult
+        );
+        if (!started) {
+            customFontLoading = false;
+            customFontStatus = Component.translatable("status.cubic-cadence.custom_font.busy");
+            rebuildWidgets();
+        }
+    }
+
+    private void handleCustomFontResult(CustomLyricFontManager.LoadResult result) {
+        customFontLoading = false;
+        switch (result.outcome()) {
+            case SUCCESS -> {
+                lyricFont = HudLyricFont.CUSTOM;
+                customFontStatus = Component.translatable(
+                        "status.cubic-cadence.custom_font.success",
+                        result.fileName()
+                );
+            }
+            case CANCELLED -> customFontStatus = Component.translatable("status.cubic-cadence.custom_font.cancelled");
+            case INVALID_FILE -> customFontStatus = Component.translatable("status.cubic-cadence.custom_font.invalid");
+            case IO_ERROR -> customFontStatus = Component.translatable("status.cubic-cadence.custom_font.io_error");
+            case PACK_ERROR -> customFontStatus = Component.translatable("status.cubic-cadence.custom_font.pack_error");
+        }
+        if (this.minecraft != null) {
+            rebuildWidgets();
+        }
+    }
+
+    private Component lyricFontMessage() {
+        String installedName = this.minecraft == null
+                ? ""
+                : CustomLyricFontManager.installedFileName(this.minecraft);
+        Component fontName = switch (lyricFont) {
+            case DEFAULT -> Component.translatable("font.cubic-cadence.default");
+            case UNIFORM -> Component.translatable("font.cubic-cadence.uniform");
+            case CUSTOM -> installedName.isBlank()
+                    ? Component.translatable("font.cubic-cadence.custom_missing")
+                    : Component.translatable("font.cubic-cadence.custom", installedName);
+        };
+        return Component.translatable("setting.cubic-cadence.lyric_font", fontName);
+    }
+
+    private Component lyricWeightMessage() {
+        return Component.translatable(
+                "setting.cubic-cadence.lyric_weight",
+                Component.translatable("font_weight.cubic-cadence." + lyricWeight.name().toLowerCase())
+        );
+    }
+
+    private Component customFontButtonMessage() {
+        return customFontLoading
+                ? Component.translatable("button.cubic-cadence.custom_font.loading")
+                : Component.translatable("button.cubic-cadence.custom_font.choose");
+    }
+
     private void restoreDefaults() {
         loadDraft(HudSettings.defaults());
         rebuildWidgets();
@@ -266,6 +402,9 @@ public final class HudSettingsScreen extends Screen {
         renderPreview(extractor, layout);
         if (activeTab == Tab.APPEARANCE) {
             renderColorSwatch(extractor, layout);
+        }
+        if (activeTab == Tab.LYRICS && !customFontStatus.getString().isBlank()) {
+            renderCustomFontStatus(extractor, layout);
         }
     }
 
@@ -343,6 +482,18 @@ public final class HudSettingsScreen extends Screen {
         extractor.outline(swatchX, swatchY, swatchWidth, 10, 0xFF8993A1);
     }
 
+    private void renderCustomFontStatus(GuiGraphicsExtractor extractor, PageLayout layout) {
+        int y = layout.controlsTop() + (CONTROL_HEIGHT + 3) * 5;
+        extractor.textWithWordWrap(
+                this.font,
+                customFontStatus,
+                layout.controlX(),
+                y,
+                layout.controlWidth(),
+                0xFFBFC7D2
+        );
+    }
+
     private PageLayout pageLayout() {
         int contentWidth = Math.max(1, this.width - PAGE_MARGIN * 2);
         int contentX = Math.max(0, (this.width - contentWidth) / 2);
@@ -371,10 +522,13 @@ public final class HudSettingsScreen extends Screen {
                 showArtist,
                 showProgress,
                 showLyrics,
+                lyricsMode,
                 hudScale,
                 titleScale,
                 lyricScale,
                 lyricColor(),
+                lyricFont,
+                lyricWeight,
                 backgroundEnabled,
                 position,
                 offsetX,
@@ -389,8 +543,22 @@ public final class HudSettingsScreen extends Screen {
                 "",
                 86_000L,
                 214_000L,
-                Component.translatable("preview.cubic-cadence.hud_current_lyric").getString(),
-                Component.translatable("preview.cubic-cadence.hud_next_lyric").getString()
+                List.of(
+                        previewLyric("previous_2", 70_000L),
+                        previewLyric("previous", 78_000L),
+                        previewLyric("current", 86_000L),
+                        previewLyric("next", 94_000L),
+                        previewLyric("next_2", 102_000L)
+                ),
+                2
+        );
+    }
+
+    private LyricLine previewLyric(String key, long startTimeMs) {
+        return new LyricLine(
+                startTimeMs,
+                Component.translatable("preview.cubic-cadence.hud_lyric." + key).getString(),
+                Component.translatable("preview.cubic-cadence.hud_lyric." + key + ".translated").getString()
         );
     }
 
@@ -401,12 +569,15 @@ public final class HudSettingsScreen extends Screen {
         this.showArtist = settings.showArtist();
         this.showProgress = settings.showProgress();
         this.showLyrics = settings.showLyrics();
+        this.lyricsMode = settings.lyricsMode();
         this.hudScale = settings.scale();
         this.titleScale = settings.titleScale();
         this.lyricScale = settings.lyricScale();
         this.lyricRed = settings.lyricRed();
         this.lyricGreen = settings.lyricGreen();
         this.lyricBlue = settings.lyricBlue();
+        this.lyricFont = settings.lyricFont();
+        this.lyricWeight = settings.lyricWeight();
         this.backgroundEnabled = settings.backgroundEnabled();
         this.position = settings.position();
         this.offsetX = settings.offsetX();
@@ -419,6 +590,9 @@ public final class HudSettingsScreen extends Screen {
 
     @Override
     public void onClose() {
+        if (customFontLoading) {
+            return;
+        }
         ModConfig.getInstance().setHudSettings(currentSettings());
         this.minecraft.setScreenAndShow(this.parent);
     }
@@ -449,6 +623,7 @@ public final class HudSettingsScreen extends Screen {
         DISPLAY("tab.cubic-cadence.hud_display"),
         SIZE("tab.cubic-cadence.hud_size"),
         APPEARANCE("tab.cubic-cadence.hud_appearance"),
+        LYRICS("tab.cubic-cadence.hud_lyrics"),
         POSITION("tab.cubic-cadence.hud_position");
 
         private final String translationKey;

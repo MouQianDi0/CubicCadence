@@ -9,7 +9,7 @@ import net.minecraft.client.gui.GuiGraphicsExtractor;
 
 import java.util.Objects;
 
-/** Compact, reusable now-playing HUD with horizontally paired lyric lines. */
+/** Reusable now-playing HUD supporting both the compact panel and lyrics-only presentation. */
 public final class NowPlayingHudElement implements HudElement {
     private final NowPlayingSource source;
     private final RemoteTextureCache textureCache;
