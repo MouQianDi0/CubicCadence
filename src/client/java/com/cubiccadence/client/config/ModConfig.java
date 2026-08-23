@@ -30,17 +30,20 @@ public class ModConfig {
     private boolean hudShowArtist = true;
     private boolean hudShowProgress = true;
     private boolean hudShowLyrics = true;
+    private boolean hudLyricsMode;
     private float hudScale = 1.0f;
     private float hudTitleScale = 1.0f;
     private float hudLyricScale = 1.0f;
     private int hudLyricColor = HudSettings.DEFAULT_LYRIC_COLOR;
+    private HudLyricFont hudLyricFont = HudLyricFont.DEFAULT;
+    private HudLyricWeight hudLyricWeight = HudLyricWeight.REGULAR;
     private boolean hudBackgroundEnabled = true;
     private HudPosition hudPosition = HudPosition.TOP_LEFT;
     private int hudOffsetX;
     private int hudOffsetY;
     private AudioQuality audioQuality = AudioQuality.STANDARD;
     private int lastTestTrackIndex;
-    private String apiEnhancedBaseUrl = "Your API Base URL";
+    private String apiEnhancedBaseUrl = "https://cub.cubiccadence.top/";
 
     private ModConfig() {
     }
@@ -124,10 +127,13 @@ public class ModConfig {
                 hudShowArtist,
                 hudShowProgress,
                 hudShowLyrics,
+                hudLyricsMode,
                 hudScale,
                 hudTitleScale,
                 hudLyricScale,
                 hudLyricColor,
+                hudLyricFont,
+                hudLyricWeight,
                 hudBackgroundEnabled,
                 hudPosition,
                 hudOffsetX,
@@ -143,10 +149,13 @@ public class ModConfig {
         this.hudShowArtist = normalized.showArtist();
         this.hudShowProgress = normalized.showProgress();
         this.hudShowLyrics = normalized.showLyrics();
+        this.hudLyricsMode = normalized.lyricsMode();
         this.hudScale = normalized.scale();
         this.hudTitleScale = normalized.titleScale();
         this.hudLyricScale = normalized.lyricScale();
         this.hudLyricColor = normalized.lyricColor();
+        this.hudLyricFont = normalized.lyricFont();
+        this.hudLyricWeight = normalized.lyricWeight();
         this.hudBackgroundEnabled = normalized.backgroundEnabled();
         this.hudPosition = normalized.position();
         this.hudOffsetX = normalized.offsetX();
@@ -210,6 +219,9 @@ public class ModConfig {
             if (root.has("hudShowLyrics")) {
                 this.hudShowLyrics = root.get("hudShowLyrics").getAsBoolean();
             }
+            if (root.has("hudLyricsMode")) {
+                this.hudLyricsMode = root.get("hudLyricsMode").getAsBoolean();
+            }
             if (root.has("hudScale")) {
                 this.hudScale = root.get("hudScale").getAsFloat();
             }
@@ -221,6 +233,12 @@ public class ModConfig {
             }
             if (root.has("hudLyricColor")) {
                 this.hudLyricColor = root.get("hudLyricColor").getAsInt();
+            }
+            if (root.has("hudLyricFont")) {
+                this.hudLyricFont = HudLyricFont.parse(root.get("hudLyricFont").getAsString());
+            }
+            if (root.has("hudLyricWeight")) {
+                this.hudLyricWeight = HudLyricWeight.parse(root.get("hudLyricWeight").getAsString());
             }
             if (root.has("hudBackgroundEnabled")) {
                 this.hudBackgroundEnabled = root.get("hudBackgroundEnabled").getAsBoolean();
@@ -281,6 +299,8 @@ public class ModConfig {
         this.hudTitleScale = settings.titleScale();
         this.hudLyricScale = settings.lyricScale();
         this.hudLyricColor = settings.lyricColor();
+        this.hudLyricFont = settings.lyricFont();
+        this.hudLyricWeight = settings.lyricWeight();
         this.hudPosition = settings.position();
         this.hudOffsetX = settings.offsetX();
         this.hudOffsetY = settings.offsetY();

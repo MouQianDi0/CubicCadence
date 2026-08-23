@@ -739,11 +739,13 @@ Minecraft 声道通过一段静音静态缓冲取得游戏管理的 OpenAL Sourc
 
 `MusicProvider.getLyrics(session, trackId)` 是跨平台歌词契约。网易云实现按当前播放歌曲调用 api-enhanced `/lyric/new`，将 `lrc.lyric` 与 `tlyric.lyric` 解析为按时间排序的 `SyncedLyrics / LyricLine`；第一版只做逐行同步，不解析 `yrc` 逐字卡拉 OK。歌词按需获取并限制在最多 64 首的内存 LRU 中，不批量抓取歌单歌词、不写磁盘、不输出歌词正文到日志。无歌词、纯音乐和歌词请求失败只让歌词区域降级，不改变播放状态。
 
-`LyricsManager` 以 `providerId + trackId` 标识请求，切歌、停止和关闭客户端时递增请求代次，迟到响应不得覆盖当前歌曲。歌词高亮直接使用播放器时间轴进行二分查找：当前行是最后一个 `startTimeMs <= positionMs` 的条目，下一行是其后继。试听源额外保留 `PlaybackSource.timelineOffsetMs`，歌词时间为本地播放进度加试听片段在原曲中的起点，HUD 进度仍使用试听片段自身进度。
+`LyricsManager` 以 `providerId + trackId` 标识请求，切歌、停止和关闭客户端时递增请求代次，迟到响应不得覆盖当前歌曲。歌词高亮直接使用播放器时间轴进行二分查找：当前行是最后一个 `startTimeMs <= positionMs` 的条目。`NowPlayingSnapshot` 保留不可变的完整 `LyricLine` 列表和当前行索引，使 HUD 可在不重复请求网络的前提下选择上下文，并继续使用解析阶段已对齐的 `translatedText`。试听源额外保留 `PlaybackSource.timelineOffsetMs`，歌词时间为本地播放进度加试听片段在原曲中的起点，HUD 进度仍使用试听片段自身进度。
 
-HUD 工具分为 `NowPlayingSource -> NowPlayingSnapshot -> NowPlayingHudElement`。渲染器只依赖统一 `Track`、播放状态、时间与歌词文本，不导入网易云实现；未来音乐平台只需实现 Provider 歌词能力并提供相同 Now Playing 快照即可复用。Fabric `HudElementRegistry` 将该元素挂在原版 Boss Bar 之后，跟随 F1 隐藏；正常游戏画面左上角显示半透明面板，封面位于左侧，歌名、作者和进度条位于右侧，底部同一行左侧高亮当前歌词、右侧弱化下一行。打开其他 Screen 或 F3 调试覆盖层时不显示。
+HUD 工具分为 `NowPlayingSource -> NowPlayingSnapshot -> NowPlayingHudElement`。渲染器只依赖统一 `Track`、播放状态、时间与 `LyricLine`，不导入网易云实现；未来音乐平台只需实现 Provider 歌词能力并提供相同 Now Playing 快照即可复用。Fabric `HudElementRegistry` 将该元素挂在原版 Boss Bar 之后，跟随 F1 隐藏；普通模式保留半透明紧凑面板及横向当前/下一句，歌词模式则在渲染入口覆盖普通内容开关，只绘制最多五组纵向原文/翻译。当前组使用完整配置颜色和字号，其他组保持相同 RGB、降低透明度和相对字号；视口不足时从距离当前句最远的行开始裁减。歌词模式不绘制背景或边框，关闭后普通 HUD 的内容和背景偏好原样恢复。打开其他 Screen 或 F3 调试覆盖层时不显示。
 
-`HudSettingsScreen` 提供 HUD 总开关及封面、歌名、作者、进度、歌词五个独立选项，写入 `config/cubic-cadence.json`。旧配置缺少新字段时全部默认开启。退出登录必须通过 `PlayerController.stop()` 同时清除音频、当前歌曲和 HUD 状态。
+`HudSettingsScreen` 提供 HUD 总开关、普通内容选项、歌词模式、大小、颜色、字体粗细以及九宫格位置和偏移，写入 `config/cubic-cadence.json`。歌词字体可选择 `minecraft:default`、`minecraft:uniform` 或 `cubic-cadence:custom`，粗细使用 Minecraft 可靠支持的常规/粗体两档；旧配置缺少新增字段时歌词模式默认关闭、字体回退原版、字重回退常规，保持旧外观。
+
+自定义字体通过 LWJGL Tiny File Dialog 在游戏内选择单个 TTF。`CustomLyricFontManager` 只保留文件名，校验扩展名、64 MiB 上限、SFNT 文件头及 Java TrueType 解析后，将字体复制到 `resourcepacks/cubic-cadence-custom-font` 的固定路径，并生成仅定义 `cubic-cadence:custom` 的资源包；字体定义追加 `minecraft:include/unifont` 处理缺字，不覆盖全局默认字体。资源包启用与资源重载成功后才提交新选择，失败则恢复旧字体文件及资源包选择。字体不上传、不写入整段来源路径，也不随 Mod 构建产物分发。退出登录仍必须通过 `PlayerController.stop()` 同时清除音频、当前歌曲和 HUD 状态。
 
 ## 10. 与网易云接口的映射
 

@@ -22,17 +22,17 @@ public record SyncedLyrics(
     }
 
     public Optional<LyricLine> currentLine(long positionMs) {
-        int index = indexAt(positionMs);
+        int index = lineIndexAt(positionMs);
         return index < 0 ? Optional.empty() : Optional.of(lines.get(index));
     }
 
     public Optional<LyricLine> nextLine(long positionMs) {
-        int index = indexAt(positionMs);
+        int index = lineIndexAt(positionMs);
         int nextIndex = index < 0 ? 0 : index + 1;
         return nextIndex >= lines.size() ? Optional.empty() : Optional.of(lines.get(nextIndex));
     }
 
-    private int indexAt(long positionMs) {
+    public int lineIndexAt(long positionMs) {
         int low = 0;
         int high = lines.size() - 1;
         int found = -1;

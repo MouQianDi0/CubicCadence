@@ -1,5 +1,36 @@
 # Changelog
 
+## 2026-08-24 00:18:31 - 新增功能（透明双语歌词模式与自定义 TTF 字体）
+
+- **变更概述**：新增独立“歌词模式”。开启后不改写普通 HUD 偏好，而是在渲染层隐藏封面、歌名、作者、进度、背景和边框，只显示播放器式纵向双语歌词；同时增加原版/统一字符/自定义字体与常规/粗体选择，并支持在游戏内通过系统文件窗口选择本机 TTF、即时重载。
+- **修改文件**：
+  - `src/client/java/com/cubiccadence/client/config/HudLyricFont.java`
+  - `src/client/java/com/cubiccadence/client/config/HudLyricWeight.java`
+  - `src/client/java/com/cubiccadence/client/config/HudSettings.java`
+  - `src/client/java/com/cubiccadence/client/config/ModConfig.java`
+  - `src/client/java/com/cubiccadence/client/font/CustomLyricFontManager.java`
+  - `src/main/java/com/cubiccadence/model/SyncedLyrics.java`
+  - `src/client/java/com/cubiccadence/client/ui/hud/NowPlayingSnapshot.java`
+  - `src/client/java/com/cubiccadence/client/ui/hud/PlayerNowPlayingSource.java`
+  - `src/client/java/com/cubiccadence/client/ui/hud/NowPlayingHudRenderer.java`
+  - `src/client/java/com/cubiccadence/client/ui/hud/NowPlayingHudElement.java`
+  - `src/client/java/com/cubiccadence/client/ui/screen/HudSettingsScreen.java`
+  - `src/client/resources/assets/cubic-cadence/lang/zh_cn.json`
+  - `src/client/resources/assets/cubic-cadence/lang/en_us.json`
+  - `src/test/java/com/cubiccadence/client/config/HudSettingsTest.java`
+  - `src/test/java/com/cubiccadence/client/font/CustomLyricFontManagerTest.java`
+  - `src/test/java/com/cubiccadence/model/SyncedLyricsTest.java`
+  - `README.md`、`README.en.md`、`docs/design.md`、`CHANGELOG.md`
+- **变更内容**：
+  - `NowPlayingSnapshot` 从两段纯文本扩展为完整不可变 `LyricLine` 列表和当前行索引，保留 LRC 解析阶段已对齐的翻译；歌词模式最多展示前后五组原文/翻译，当前组完整高亮，其余组保持同一 RGB、仅降低透明度和相对字号，视口不足时优先裁减距离当前句最远的行；
+  - 歌词模式在渲染入口独立分支并强制透明，不修改封面、标题、进度或普通背景配置；关闭后立即恢复原 HUD。旧配置缺少新增字段时歌词模式默认关闭、字体为原版、字重为常规；
+  - HUD 设置新增“歌词”标签页、模式开关、普通 HUD 歌词开关、字体和粗细切换、系统 TTF 选择按钮、加载状态及五组双语实时预览；歌词字号和 RGB 继续复用现有尺寸/外观控件；
+  - `CustomLyricFontManager` 使用 Minecraft 已附带的 LWJGL Tiny File Dialog，在后台选择和校验单个 `.ttf`；限制 64 MiB，检查 SFNT 文件头并执行 Java TrueType 解析，只把文件名和字体内容写入固定的本地专用资源包，不记录完整来源路径；
+  - 自定义资源包只定义 `cubic-cadence:custom` 并追加 Unicode 缺字回退，不覆盖菜单、聊天或其他 HUD 字体；`pack.mcmeta` 按当前 26.2 的资源包 major/minor 同时写入 `pack_format`、`min_format` 和 `max_format`；资源包刷新、启用和重载失败时恢复旧字体文件及旧资源包选择，取消或无效文件不改变当前字体；
+  - 新增配置默认/回退、歌词二分索引、无效 TTF 拒绝、字体包定义、Minecraft 原生 Provider/资源包元数据解码、旧字体回滚及来源文件名测试，并同步中英文说明和设计文档。
+- **风险**：中等风险，主要集中在客户端字体资源重载和透明歌词布局。任意 TTF 的字面高度、覆盖字符及本身字重不同，可能造成换行或视觉差异；缺字会回退 Unicode，过高布局会按视口裁减。自动化测试不能证明操作系统文件窗口、真实 TTF 热重载及游戏内不同 GUI 缩放的最终观感，仍需人工验收。
+- **验证结果**：`.\gradlew.bat build --no-daemon` 构建成功，18 个测试套件共 83 个测试全部通过；中英文语言 JSON 均可解析且 178 个键完全一致；`git diff --check` 只有 Windows LF→CRLF 提示、没有补丁格式错误。操作系统文件窗口、真实 TTF 热重载和不同 GUI 缩放下的视觉效果仍需在游戏内人工验收。
+
 ## 2026-08-21 23:49:53 - 优化代码（HUD 预览与游戏窗口保持相同比例）
 
 - **变更概述**：根据实际使用反馈，将 HUD 设置页左侧预览屏幕改为与当前游戏窗口严格保持相同宽高比，避免铺满高窄区域后造成画面和 HUD 位置观感失真。

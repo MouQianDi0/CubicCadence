@@ -2,7 +2,6 @@ package com.cubiccadence.client.ui.hud;
 
 import com.cubiccadence.client.lyrics.LyricsManager;
 import com.cubiccadence.client.playback.PlayerController;
-import com.cubiccadence.model.LyricLine;
 import com.cubiccadence.model.PlaybackState;
 import com.cubiccadence.model.SyncedLyrics;
 import com.cubiccadence.model.Track;
@@ -32,19 +31,13 @@ public final class PlayerNowPlayingSource implements NowPlayingSource {
                 .filter(value -> track.providerId().equals(value.providerId())
                         && track.trackId().equals(value.trackId()))
                 .orElse(null);
-        String current = lyrics == null
-                ? ""
-                : lyrics.currentLine(timelinePosition).map(LyricLine::text).orElse("");
-        String next = lyrics == null
-                ? ""
-                : lyrics.nextLine(timelinePosition).map(LyricLine::text).orElse("");
         return Optional.of(new NowPlayingSnapshot(
                 track,
                 state,
                 playerController.getPositionMs(),
                 playerController.getDurationMs(),
-                current,
-                next
+                lyrics == null ? java.util.List.of() : lyrics.lines(),
+                lyrics == null ? -1 : lyrics.lineIndexAt(timelinePosition)
         ));
     }
 }

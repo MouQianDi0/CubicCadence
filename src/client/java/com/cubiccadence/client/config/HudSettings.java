@@ -8,10 +8,13 @@ public record HudSettings(
         boolean showArtist,
         boolean showProgress,
         boolean showLyrics,
+        boolean lyricsMode,
         float scale,
         float titleScale,
         float lyricScale,
         int lyricColor,
+        HudLyricFont lyricFont,
+        HudLyricWeight lyricWeight,
         boolean backgroundEnabled,
         HudPosition position,
         int offsetX,
@@ -28,6 +31,8 @@ public record HudSettings(
         titleScale = clampScale(titleScale);
         lyricScale = clampScale(lyricScale);
         lyricColor = 0xFF000000 | (lyricColor & 0x00FFFFFF);
+        lyricFont = lyricFont == null ? HudLyricFont.DEFAULT : lyricFont;
+        lyricWeight = lyricWeight == null ? HudLyricWeight.REGULAR : lyricWeight;
         position = position == null ? HudPosition.TOP_LEFT : position;
         offsetX = clampOffset(offsetX);
         offsetY = clampOffset(offsetY);
@@ -41,10 +46,13 @@ public record HudSettings(
                 true,
                 true,
                 true,
+                false,
                 1.0f,
                 1.0f,
                 1.0f,
                 DEFAULT_LYRIC_COLOR,
+                HudLyricFont.DEFAULT,
+                HudLyricWeight.REGULAR,
                 true,
                 HudPosition.TOP_LEFT,
                 0,
