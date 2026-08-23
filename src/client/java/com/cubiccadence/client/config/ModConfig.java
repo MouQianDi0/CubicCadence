@@ -40,7 +40,7 @@ public class ModConfig {
     private int hudOffsetY;
     private AudioQuality audioQuality = AudioQuality.STANDARD;
     private int lastTestTrackIndex;
-    private String apiEnhancedBaseUrl = "https://cub.cubiccadence.top/";
+    private String apiEnhancedBaseUrl = "Your API Base URL";
 
     private ModConfig() {
     }
