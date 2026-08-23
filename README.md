@@ -83,12 +83,6 @@ IDE 的配置与运行方式请参考 [Fabric 官方文档](https://docs.fabricm
 
 - **面向玩家**：模组内置了作者部署的服务器地址，安装后开箱即用，无需任何配置。
 
-```json
-{
-  "apiEnhancedBaseUrl": "https://api.cubiccadence.top/"
-}
-```
-
 - **面向开发者**：如需连接自托管的 `api-enhanced` 服务，请覆盖为你的服务地址，例如：
 
 ```json
