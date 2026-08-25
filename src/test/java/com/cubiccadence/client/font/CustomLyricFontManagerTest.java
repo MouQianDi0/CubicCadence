@@ -5,9 +5,11 @@ import com.google.gson.JsonParser;
 import com.mojang.serialization.JsonOps;
 import net.minecraft.SharedConstants;
 import net.minecraft.client.gui.font.providers.GlyphProviderDefinition;
+import net.minecraft.client.gui.font.providers.TrueTypeGlyphProviderDefinition;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.Bootstrap;
 import net.minecraft.server.packs.PackLocationInfo;
+import net.minecraft.server.packs.PackType;
 import net.minecraft.server.packs.PathPackResources;
 import net.minecraft.server.packs.metadata.pack.PackFormat;
 import net.minecraft.server.packs.metadata.pack.PackMetadataSection;
@@ -49,6 +51,9 @@ class CustomLyricFontManagerTest {
         Bootstrap.bootStrap();
 
         CustomLyricFontManager.writePackDefinitions(pack, 88, 0);
+        Path managedFont = pack.resolve("assets/cubic-cadence/font/custom.ttf");
+        Files.createDirectories(managedFont.getParent());
+        Files.writeString(managedFont, "path-resolution-fixture", StandardCharsets.UTF_8);
 
         JsonObject metadata = JsonParser.parseString(
                 Files.readString(pack.resolve("pack.mcmeta"), StandardCharsets.UTF_8)
@@ -61,7 +66,7 @@ class CustomLyricFontManagerTest {
         )).getAsJsonObject();
         assertEquals("ttf", font.getAsJsonArray("providers").get(0).getAsJsonObject().get("type").getAsString());
         assertEquals(
-                "cubic-cadence:font/custom.ttf",
+                "cubic-cadence:custom.ttf",
                 font.getAsJsonArray("providers").get(0).getAsJsonObject().get("file").getAsString()
         );
         assertEquals(
@@ -80,6 +85,14 @@ class CustomLyricFontManagerTest {
         );
         PathPackResources resources = new PathPackResources(location, pack);
         try {
+            TrueTypeGlyphProviderDefinition ttf = TrueTypeGlyphProviderDefinition.CODEC.codec()
+                    .parse(JsonOps.INSTANCE, font.getAsJsonArray("providers").get(0))
+                    .getOrThrow();
+            assertEquals("cubic-cadence:font/custom.ttf", ttf.location().withPrefix("font/").toString());
+            assertNotNull(resources.getResource(
+                    PackType.CLIENT_RESOURCES,
+                    ttf.location().withPrefix("font/")
+            ));
             PackMetadataSection decoded = resources.getMetadataSection(PackMetadataSection.CLIENT_TYPE);
             assertNotNull(decoded);
             assertTrue(decoded.supportedFormats().isValueInRange(PackFormat.of(88, 0)));

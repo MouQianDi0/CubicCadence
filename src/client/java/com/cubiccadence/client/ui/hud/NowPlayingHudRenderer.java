@@ -11,11 +11,13 @@ import net.minecraft.client.gui.Font;
 import net.minecraft.client.gui.GuiGraphicsExtractor;
 import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.FontDescription;
+import net.minecraft.network.chat.MutableComponent;
 import net.minecraft.util.FormattedCharSequence;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.function.IntPredicate;
 import java.util.stream.Collectors;
 
 /** Shared renderer used by both the live HUD and its settings preview. */
@@ -425,20 +427,58 @@ public final class NowPlayingHudRenderer {
         if (value == null || value.isBlank()) {
             return Component.empty();
         }
-        FontDescription description = effectiveLyricFont(settings);
+        if (settings.lyricFont() != HudLyricFont.CUSTOM) {
+            return styledLyricRun(value, settings.lyricFont().description(), settings);
+        }
+
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft == null || !CustomLyricFontManager.isLoaded(minecraft)) {
+            return styledLyricRun(value, HudLyricFont.DEFAULT.description(), settings);
+        }
+
+        MutableComponent text = Component.empty();
+        for (LyricFontRun run : splitLyricFontRuns(value, CustomLyricFontManager.glyphSupport(minecraft))) {
+            FontDescription description = run.customFont()
+                    ? HudLyricFont.CUSTOM.description()
+                    : HudLyricFont.DEFAULT.description();
+            text.append(styledLyricRun(run.text(), description, settings));
+        }
+        return text;
+    }
+
+    private static Component styledLyricRun(
+            String value,
+            FontDescription description,
+            HudSettings settings
+    ) {
         return Component.literal(value).withStyle(style -> style
                 .withFont(description)
                 .withBold(settings.lyricWeight().bold()));
     }
 
-    private static FontDescription effectiveLyricFont(HudSettings settings) {
-        if (settings.lyricFont() != HudLyricFont.CUSTOM) {
-            return settings.lyricFont().description();
+    static List<LyricFontRun> splitLyricFontRuns(String value, IntPredicate customFontSupports) {
+        Objects.requireNonNull(value, "value");
+        Objects.requireNonNull(customFontSupports, "customFontSupports");
+        if (value.isEmpty()) {
+            return List.of();
         }
-        Minecraft minecraft = Minecraft.getInstance();
-        return minecraft != null && CustomLyricFontManager.isLoaded(minecraft)
-                ? settings.lyricFont().description()
-                : HudLyricFont.DEFAULT.description();
+
+        List<LyricFontRun> runs = new ArrayList<>();
+        int runStart = 0;
+        int firstCodePoint = value.codePointAt(0);
+        boolean currentUsesCustomFont = customFontSupports.test(firstCodePoint);
+        for (int offset = Character.charCount(firstCodePoint); offset < value.length(); ) {
+            int codePoint = value.codePointAt(offset);
+            boolean usesCustomFont = customFontSupports.test(codePoint);
+            if (usesCustomFont != currentUsesCustomFont) {
+                runs.add(new LyricFontRun(value.substring(runStart, offset), currentUsesCustomFont));
+                runStart = offset;
+                currentUsesCustomFont = usesCustomFont;
+            }
+            offset += Character.charCount(codePoint);
+        }
+        runs.add(new LyricFontRun(value.substring(runStart), currentUsesCustomFont));
+        return List.copyOf(runs);
     }
 
     private static List<FormattedCharSequence> wrapLyric(Font font, Component text, int width) {
@@ -535,5 +575,8 @@ public final class NowPlayingHudRenderer {
         private static String normalize(String value) {
             return value == null ? "" : value.trim();
         }
+    }
+
+    record LyricFontRun(String text, boolean customFont) {
     }
 }

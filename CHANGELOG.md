@@ -1,5 +1,24 @@
 # Changelog
 
+## 2026-08-24 01:00:19 - 修复问题（远程歌单连接与自定义字体缺字方框）
+
+- **变更概述**：复核开发运行配置已指向可用的远程 `api-enhanced` 服务；修复自定义 TTF 资源路径被 Minecraft 重复添加 `font/` 后无法加载的问题，并对自定义字体不包含的字符实施显式原版字体回退，避免中文歌词显示方框。
+- **修改文件**：
+  - `src/client/java/com/cubiccadence/client/font/CustomLyricFontManager.java`
+  - `src/client/java/com/cubiccadence/client/ui/hud/NowPlayingHudRenderer.java`
+  - `src/test/java/com/cubiccadence/client/font/CustomLyricFontManagerTest.java`
+  - `src/test/java/com/cubiccadence/client/ui/hud/NowPlayingHudRendererTest.java`
+  - `run/resourcepacks/cubic-cadence-custom-font/assets/cubic-cadence/font/custom.json`（本地生成资源包）
+  - `CHANGELOG.md`
+- **变更内容**：
+  - 将字体 Provider 的文件标识从会被解析为 `font/font/custom.ttf` 的 `cubic-cadence:font/custom.ttf` 修正为 `cubic-cadence:custom.ttf`；同步修复当前开发运行目录中已生成的字体包，使现有字体可在下次资源加载时直接生效；
+  - 在 TTF 校验阶段保留 Java 字体对象并缓存其真实字形覆盖范围；歌词文本按 Unicode 码点合并为连续字体段，自定义字体支持的字符继续使用自定义字体，不支持的中文、标点、表情或其他字符明确改用 Minecraft 原版字体；
+  - 保留字体 JSON 中的 Unicode Provider 引用作为第二层回退；字体粗细、颜色、换行和歌词模式布局继续作用于混合字体组件，不修改普通 HUD 偏好；
+  - 字体包测试不仅解码 JSON，还按 Minecraft 26.2 的 `font/` 自动前缀规则解析并检查真实资源文件；新增英文、自定义字体缺失的中文和 Unicode 代理对分段测试；
+  - 已确认 `run/config/cubic-cadence.json` 当前为 `https://cub.cubiccadence.top/`，远程首页和 `/user/playlist` 均返回 HTTP 200，因此无需再次改写该配置。
+- **风险**：低至中风险。混合字体的字宽和基线可能存在轻微差异，但宽度、截断与换行均基于最终组件重新计算；极少数字体可能声明某字符可用但自身字形就是方框，这属于字体文件内容，无法由缺字检测识别。资源热重载和实际歌词观感仍需游戏内人工验收。
+- **验证结果**：字体管理器与 HUD 渲染器定向测试通过；首次全量测试因 Windows 临时目录清理发生一次 `TempDirDeletionException`，对应 `MusicLibraryManagerTest` 单独复跑通过，随后 `\.\gradlew.bat build --no-daemon` 完整构建成功；19 个测试套件共 85 个测试全部通过，中英文语言 JSON 均可解析、178 个键完全一致，`git diff --check` 无补丁格式错误。真实 TTF 热加载、混合中英文歌词观感与远程账号歌单仍需游戏内人工验收。
+
 ## 2026-08-24 00:18:31 - 新增功能（透明双语歌词模式与自定义 TTF 字体）
 
 - **变更概述**：新增独立“歌词模式”。开启后不改写普通 HUD 偏好，而是在渲染层隐藏封面、歌名、作者、进度、背景和边框，只显示播放器式纵向双语歌词；同时增加原版/统一字符/自定义字体与常规/粗体选择，并支持在游戏内通过系统文件窗口选择本机 TTF、即时重载。

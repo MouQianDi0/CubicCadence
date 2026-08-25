@@ -23,6 +23,7 @@ import java.util.Locale;
 import java.util.Objects;
 import java.util.concurrent.atomic.AtomicBoolean;
 import java.util.function.Consumer;
+import java.util.function.IntPredicate;
 
 /** Installs one user-selected TTF as an isolated, namespaced client resource pack. */
 public final class CustomLyricFontManager {
@@ -40,6 +41,9 @@ public final class CustomLyricFontManager {
             "font/custom.json"
     );
     private static final AtomicBoolean SELECTING = new AtomicBoolean();
+    private static final Object FONT_CACHE_LOCK = new Object();
+    private static volatile Font cachedFont;
+    private static volatile boolean fontCacheInitialized;
 
     private CustomLyricFontManager() {
     }
@@ -119,13 +123,20 @@ public final class CustomLyricFontManager {
         }
     }
 
+    /** Returns the code points provided by the selected TTF, excluding Minecraft's fallback fonts. */
+    public static IntPredicate glyphSupport(Minecraft minecraft) {
+        Objects.requireNonNull(minecraft, "minecraft");
+        Font font = cachedFont(minecraft.getResourcePackDirectory());
+        return font == null ? ignored -> false : font::canDisplay;
+    }
+
     static PreparedInstall prepareInstall(
             Path source,
             Path resourcePackRoot,
             int packFormatMajor,
             int packFormatMinor
     ) throws IOException {
-        validateFont(source);
+        Font parsedFont = validateFont(source);
         Path pack = packPath(resourcePackRoot);
         Path fontDirectory = pack.resolve("assets/cubic-cadence/font");
         Path target = fontDirectory.resolve(FONT_FILE_NAME);
@@ -145,7 +156,8 @@ public final class CustomLyricFontManager {
                 backup,
                 staging,
                 previousFont,
-                safeFileName(source)
+                safeFileName(source),
+                parsedFont
         );
         try {
             Files.copy(source, staging, StandardCopyOption.REPLACE_EXISTING);
@@ -226,7 +238,7 @@ public final class CustomLyricFontManager {
         });
     }
 
-    static void validateFont(Path source) throws IOException {
+    static Font validateFont(Path source) throws IOException {
         if (source == null || !Files.isRegularFile(source)) {
             throw new InvalidFontException();
         }
@@ -244,7 +256,7 @@ public final class CustomLyricFontManager {
             throw new InvalidFontException();
         }
         try {
-            Font.createFont(Font.TRUETYPE_FONT, source.toFile());
+            return Font.createFont(Font.TRUETYPE_FONT, source.toFile());
         } catch (FontFormatException exception) {
             throw new InvalidFontException();
         }
@@ -277,7 +289,7 @@ public final class CustomLyricFontManager {
                           "providers": [
                             {
                               "type": "ttf",
-                              "file": "cubic-cadence:font/custom.ttf",
+                              "file": "cubic-cadence:custom.ttf",
                               "size": 11.0,
                               "oversample": 2.0,
                               "shift": [0.0, 0.0]
@@ -303,6 +315,30 @@ public final class CustomLyricFontManager {
 
     private static Path fontPath(Path resourcePackRoot) {
         return packPath(resourcePackRoot).resolve("assets/cubic-cadence/font").resolve(FONT_FILE_NAME);
+    }
+
+    private static Font cachedFont(Path resourcePackRoot) {
+        if (fontCacheInitialized) {
+            return cachedFont;
+        }
+        synchronized (FONT_CACHE_LOCK) {
+            if (!fontCacheInitialized) {
+                try {
+                    cachedFont = validateFont(fontPath(resourcePackRoot));
+                } catch (IOException | RuntimeException ignored) {
+                    cachedFont = null;
+                }
+                fontCacheInitialized = true;
+            }
+            return cachedFont;
+        }
+    }
+
+    private static void cacheFont(Font font) {
+        synchronized (FONT_CACHE_LOCK) {
+            cachedFont = font;
+            fontCacheInitialized = true;
+        }
     }
 
     private static String safeFileName(Path source) {
@@ -363,6 +399,7 @@ public final class CustomLyricFontManager {
         private final Path staging;
         private final boolean previousFont;
         private final String fileName;
+        private final Font parsedFont;
 
         PreparedInstall(
                 Path pack,
@@ -372,15 +409,29 @@ public final class CustomLyricFontManager {
                 boolean previousFont,
                 String fileName
         ) {
+            this(pack, target, backup, staging, previousFont, fileName, null);
+        }
+
+        PreparedInstall(
+                Path pack,
+                Path target,
+                Path backup,
+                Path staging,
+                boolean previousFont,
+                String fileName,
+                Font parsedFont
+        ) {
             this.pack = pack;
             this.target = target;
             this.backup = backup;
             this.staging = staging;
             this.previousFont = previousFont;
             this.fileName = fileName;
+            this.parsedFont = parsedFont;
         }
 
         void commit() throws IOException {
+            cacheFont(parsedFont);
             Files.writeString(pack.resolve(SOURCE_NAME_FILE), fileName, StandardCharsets.UTF_8);
             Files.deleteIfExists(backup);
             Files.deleteIfExists(staging);
